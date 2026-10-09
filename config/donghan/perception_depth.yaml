@@ -7,12 +7,14 @@ schema_version: 1
 depth:
   # conveyor frame (assumed): origin = pick zone centre (-1.08, 1.20) on the roller top 0.895, world axes.
   # Boxes rest against the stopper face (x -0.845 -> +0.235); x_max stops short of the stopper top,
-  # x_min covers the longest box (0.66 m), y stays inside the side rails (0.76 m apart).
-  roi_xy_m: [-0.50, 0.232, -0.36, 0.36]
+  # x_min covers the longest box (0.66 m), y reaches just short of the side rails (0.76 m apart).
+  roi_xy_m: [-0.50, 0.232, -0.375, 0.375]
   min_depth_m: 0.2
   max_depth_m: 4.0
   min_box_height_m: 0.03
   min_points: 200
+  cluster_gap_m: 0.02                    # queued boxes in the ROI are split along conveyor x
+  edge_margin_m: 0.004                   # box at the ROI edge: partial view, no damage call
   top_percentile: 90.0
   interior_margin_m: 0.03
   max_dent_m: 0.012

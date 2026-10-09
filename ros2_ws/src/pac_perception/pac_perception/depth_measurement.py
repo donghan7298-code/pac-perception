@@ -42,6 +42,8 @@ class DepthConfig:
     max_depth_m: float = 4.0
     min_box_height_m: float = 0.03       # points higher than this above the rollers belong to the box
     min_points: int = 200
+    cluster_gap_m: float = 0.02          # boxes in the ROI are split along conveyor x at wider gaps
+    edge_margin_m: float = 0.004         # box this close to the ROI edge is cut off: no damage call
     top_percentile: float = 90.0         # robust top height (ignores small dents and edge noise)
     interior_margin_m: float = 0.03      # top-face interior used for dent / tilt checks
     max_dent_m: float = 0.012            # deeper interior dip -> dented top
@@ -62,6 +64,10 @@ class DepthMeasurement:
     corner_gap_m: float
     valid_ratio: float
     point_count: int
+    box_count: int                  # separate boxes seen in the ROI
+    gap_upstream_m: float | None    # free conveyor length to the next box upstream (-x), None if none
+    gap_downstream_m: float | None
+    in_full_view: bool              # False: box reaches the ROI edge, size is a lower bound
     damage_reasons: tuple[str, ...]
     confidence: float
 
@@ -70,8 +76,14 @@ class DepthMeasurement:
         return bool(self.damage_reasons)
 
 
-def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> DepthMeasurement:
-    """Measure the single box inside ``config.roi_xy_m``. Raises ``ValueError`` if none is found."""
+def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig,
+                target_x: float | None = None) -> DepthMeasurement:
+    """Measure one box inside ``config.roi_xy_m``. Raises ``ValueError`` if none is found.
+
+    Boxes queued on the conveyor can share the ROI, so box points are split along
+    the conveyor x axis. The downstream-most box (at the stopper) is measured, or
+    the one at ``target_x`` (conveyor frame). Touching boxes stay one cluster.
+    """
     depth = np.asarray(depth, dtype=float)
     if depth.ndim != 2:
         raise ValueError("depth must be a 2-D image")
@@ -85,6 +97,23 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
     if int(box.sum()) < config.min_points:
         raise ValueError(f"no box in the pick zone ({int(box.sum())} points)")
     box_pts, bu, bv = pts[box], u[box], v[box]
+
+    order = np.argsort(box_pts[:, 0], kind="stable")
+    xs = box_pts[order, 0]
+    clusters = np.split(order, np.nonzero(np.diff(xs) > config.cluster_gap_m)[0] + 1)
+    spans = [(box_pts[c, 0].min(), box_pts[c, 0].max()) for c in clusters]
+    if target_x is None:
+        k = len(clusters) - 1
+    else:
+        miss = [max(lo - target_x, target_x - hi, 0.0) for lo, hi in spans]
+        k = int(np.argmin(miss))
+        if miss[k] > 0.05:
+            raise ValueError(f"no box at target_x {target_x:.3f} m")
+    gap_up = float(spans[k][0] - spans[k - 1][1]) if k > 0 else None
+    gap_down = float(spans[k + 1][0] - spans[k][1]) if k + 1 < len(spans) else None
+    if len(clusters[k]) < config.min_points:
+        raise ValueError(f"no box in the pick zone ({len(clusters[k])} points in the selected cluster)")
+    box_pts, bu, bv = box_pts[clusters[k]], bu[clusters[k]], bv[clusters[k]]
 
     hull = _convex_hull(box_pts[:, :2])
     (cx, cy), length, width, yaw = _min_area_rect(hull)
@@ -109,12 +138,16 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
     patch = valid[bv.min():bv.max() + 1, bu.min():bu.max() + 1]
     valid_ratio = float(patch.mean())
 
+    e = config.edge_margin_m
+    on_image_edge = bu.min() == 0 or bv.min() == 0 or bu.max() == depth.shape[1] - 1 or bv.max() == depth.shape[0] - 1
+    full_view = bool(box_pts[:, 0].min() - x0 > e and x1 - box_pts[:, 0].max() > e
+                     and box_pts[:, 1].min() - y0 > e and y1 - box_pts[:, 1].max() > e and not on_image_edge)
     reasons = tuple(name for name, bad in (
         ("top_dent", dent > config.max_dent_m),
         ("top_tilt", tilt > config.max_tilt_rad),
         ("crushed_corner", rectangularity < config.min_rectangularity or corner_gap > config.max_corner_gap_m),
-    ) if bad)
-    confidence = 1.0 if valid_ratio >= config.min_valid_ratio else config.uncertain_confidence
+    ) if bad) if full_view else ()
+    confidence = 1.0 if valid_ratio >= config.min_valid_ratio and full_view else config.uncertain_confidence
 
     return DepthMeasurement(
         size=Size3D(round(length, 4), round(width, 4), round(height, 4)),
@@ -124,7 +157,11 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
         rectangularity=float(rectangularity),
         corner_gap_m=corner_gap,
         valid_ratio=valid_ratio,
-        point_count=int(box.sum()),
+        point_count=len(box_pts),
+        box_count=len(clusters),
+        gap_upstream_m=gap_up,
+        gap_downstream_m=gap_down,
+        in_full_view=full_view,
         damage_reasons=reasons,
         confidence=confidence,
     )
