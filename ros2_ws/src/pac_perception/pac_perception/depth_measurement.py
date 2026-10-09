@@ -47,6 +47,7 @@ class DepthConfig:
     max_dent_m: float = 0.012            # deeper interior dip -> dented top
     max_tilt_rad: float = math.radians(3.0)
     min_rectangularity: float = 0.92     # hull area / min-area rectangle; lower -> crushed corner
+    max_corner_gap_m: float = 0.02       # rectangle corner to nearest hull vertex; size independent
     min_valid_ratio: float = 0.85        # valid depth pixels around the box
     uncertain_confidence: float = 0.6    # same meaning as pac_runtime PerceptionConfig
 
@@ -58,6 +59,7 @@ class DepthMeasurement:
     tilt_rad: float
     dent_depth_m: float
     rectangularity: float
+    corner_gap_m: float
     valid_ratio: float
     point_count: int
     damage_reasons: tuple[str, ...]
@@ -90,6 +92,9 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
     rectangularity = _polygon_area(hull) / (length * width)
 
     c, s = math.cos(yaw), math.sin(yaw)
+    half = [(sa * length / 2, sb * width / 2) for sa, sb in ((1, 1), (-1, 1), (-1, -1), (1, -1))]
+    corners = np.array([[cx + c * a - s * b, cy + s * a + c * b] for a, b in half])
+    corner_gap = float(np.max(np.min(np.linalg.norm(corners[:, None] - hull[None], axis=2), axis=1)))
     dx, dy = box_pts[:, 0] - cx, box_pts[:, 1] - cy
     along, across = c * dx + s * dy, -s * dx + c * dy
     m = config.interior_margin_m
@@ -107,7 +112,7 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
     reasons = tuple(name for name, bad in (
         ("top_dent", dent > config.max_dent_m),
         ("top_tilt", tilt > config.max_tilt_rad),
-        ("crushed_corner", rectangularity < config.min_rectangularity),
+        ("crushed_corner", rectangularity < config.min_rectangularity or corner_gap > config.max_corner_gap_m),
     ) if bad)
     confidence = 1.0 if valid_ratio >= config.min_valid_ratio else config.uncertain_confidence
 
@@ -117,6 +122,7 @@ def measure_box(depth: np.ndarray, camera: CameraModel, config: DepthConfig) -> 
         tilt_rad=tilt,
         dent_depth_m=dent,
         rectangularity=float(rectangularity),
+        corner_gap_m=corner_gap,
         valid_ratio=valid_ratio,
         point_count=int(box.sum()),
         damage_reasons=reasons,

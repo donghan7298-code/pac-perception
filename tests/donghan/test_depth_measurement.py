@@ -38,6 +38,18 @@ def test_crushed_corner_is_damage():
     assert "crushed_corner" in m.damage_reasons
 
 
+def test_crushed_corner_on_a_large_box_is_damage():
+    # area ratio stays above 0.92 here; the corner gap catches it
+    m = measure_box(render(0.52, 0.48, 0.40, crushed_corner_m=0.10), camera(), CONFIG)
+    assert m.rectangularity > CONFIG.min_rectangularity
+    assert "crushed_corner" in m.damage_reasons
+
+
+def test_intact_corners_have_small_gap():
+    m = measure_box(render(0.52, 0.48, 0.40, yaw=0.3), camera(), CONFIG)
+    assert m.corner_gap_m < CONFIG.max_corner_gap_m
+
+
 def test_missing_depth_lowers_confidence():
     m = measure_box(render(0.34, 0.25, 0.21, hole_ratio=0.4), camera(), CONFIG)
     assert m.confidence == CONFIG.uncertain_confidence

@@ -23,10 +23,26 @@ AHEAD 런타임 흐름의 **1단계 인식** 중 통합 저장소에 아직 없�
 
 | 파일 | 내용 |
 |---|---|
-| `pac_perception/depth_measurement.py` | 깊이 이미지 → `conveyor` frame 점군 → 박스 크기(긴 변·짧은 변·높이), 위치·yaw, 파손 단서(윗면 눌림, 기울어짐, 모서리 찌그러짐), 확신도 |
+| `pac_perception/depth_measurement.py` | 깊이 이미지 → `conveyor` frame 점군 → 박스 크기(긴 변·짧은 변·높이), 위치·yaw, 파손 단서(윗면 눌림, 기울어짐, 모서리 찌그러짐: 면적 비율 + 박스 크기와 무관한 모서리 빈 거리), 확신도 |
 | `pac_perception/sku_resolver.py` | 라벨을 못 읽었을 때 측정 크기·무게로 SKU 추정. 허용오차는 `ValidatorConfig`와 같은 의미. 후보가 둘 이상이거나 없으면 라벨 없음으로 둠 |
 | `pac_perception/raw_observation.py` | 저울 무게 + 깊이 측정 (+ 라벨) → `RawObservation` |
 | `config/donghan/perception_depth.yaml` | 위 두 설정 (SI 단위). `load_perception_config()`로 읽음 |
+| `viewer/perception_sim.html` | 브라우저 시뮬레이터 (아래) |
+
+`conveyor` frame은 통합 저장소에 원점 정의가 없어 **픽업 구역 중심 (-1.08, 1.20)의 롤러 윗면(z 0.895), 축은 world와 같음**으로 가정했습니다. 팀 확정이 필요합니다.
+
+## 시뮬레이터 (`viewer/perception_sim.html`)
+
+파일을 브라우저로 바로 열면 됩니다 (서버 불필요, three.js는 CDN). 재성 님 Gazebo V4.4 작업셀의 배치를 그대로 씁니다:
+컨베이어·인라인 저울(x −3.80)·PICK 스토퍼(x −0.845)·기둥 CCTV(위치·자세·화각 1.40 rad는 `ahead_workcell_v4_4_suction.sdf`)·HDR50-22 받침대·팔레트(1.10 m, 데크 0.15 m)·버퍼 테이블, 도착 흔들림(±80 mm, ±10°, `ARRIVAL_JITTER` 기본값).
+
+- 박스마다: 저울 안정화 → 라벨 판독 → 깊이 이미지 렌더링(기둥 카메라에서 광선 추적) → `measure_box` → `resolve_sku` → `StateValidator` → 팔레트 또는 Hold/NG.
+- 이상 주입: 라벨 미판독, 윗면 눌림, 모서리 찌그러짐, 내용물 손실, 규격 불량, 깊이 결측, 미등록 박스 (확률 조절, 시드 고정).
+- 결과: 주입 이상 → 판정 분포 표, 박스별 상세, JSONL 내보내기 (공통 기준서 21절 필드 일부).
+- URL 옵션: `?order=demo_original10&seed=7&repeat=3&speed=inf&autorun`
+- 계산부(`<script id="core">`)는 DOM 없이 node로도 돌아갑니다: `node viewer/check_core.js demo_original10 7 15` (판정 분포와 크기 오차 출력).
+
+시뮬레이터 전용 가정: 기둥 CCTV를 RGB-D로 가정(현재 Gazebo는 RGB만), 로봇 팔 형상과 팔레트 배치 규칙은 시각화용 단순화(실제 배치는 5단계 플래너), Hold/NG 위치는 임시, Base-view는 `PerceptionSim.base_view`와 같은 가상 동작.
 
 판정 연결:
 
