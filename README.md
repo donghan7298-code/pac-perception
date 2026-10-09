@@ -28,6 +28,9 @@ AHEAD 런타임 흐름의 **1단계 인식** 중 통합 저장소에 아직 없�
 | `pac_perception/raw_observation.py` | 저울 무게 + 깊이 측정 (+ 라벨) → `RawObservation` |
 | `config/donghan/perception_depth.yaml` | 위 두 설정 (SI 단위). `load_perception_config()`로 읽음 |
 | `viewer/perception_sim.html` | 브라우저 시뮬레이터 (아래) |
+| `pac_perception/signals.py` | `RawObservation`에 없는 1단계 원신호 (`PerceptionSignals`) |
+| `pac_reinspection/` | 재인식(RI) 사유: `StateValidator`를 감싸는 2단계 확장 제안. 규정 [docs/donghan/reinspection_policy.md](docs/donghan/reinspection_policy.md), 설정 `config/donghan/reinspection_policy.yaml` (가정치) |
+| `tools/reinspection_drop_in.py` | 통합 저장소 테스트를 `ReinspectionValidator`로 교체해 돌리는 pytest 플러그인 |
 
 `conveyor` frame은 통합 저장소에 원점 정의가 없어 **픽업 구역 중심 (-1.08, 1.20)의 롤러 윗면(z 0.895), 축은 world와 같음**으로 가정했습니다. 팀 확정이 필요합니다.
 
@@ -78,7 +81,7 @@ AHEAD 런타임 흐름의 **1단계 인식** 중 통합 저장소에 아직 없�
 ## 개발 환경과 테스트
 
 공통 계약(`pac_common`, `pac_runtime`)은 통합 저장소에 있으므로, 테스트는 통합 저장소 사본을 사용합니다.
-`PAC_INTEGRATED_ROOT`를 지정하거나 이 저장소 옆에 `dlwotjd1289-cloud` 이름으로 clone 하세요.
+`PAC_INTEGRATED_ROOT`를 지정하거나 이 저장소 옆에 `pac-integrated-main`(origin/main 깨끗한 사본, 우선) 또는 `dlwotjd1289-cloud` 이름으로 clone 하세요. 작업 중인 브랜치가 아닌 origin/main 사본을 쓰는 것을 권장합니다.
 
 ```
 git clone https://github.com/dlwotjd1289-cloud/dlwotjd1289-cloud ../dlwotjd1289-cloud

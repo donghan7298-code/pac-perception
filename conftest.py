@@ -3,7 +3,8 @@
 The shared contract (``pac_common``, ``pac_runtime.perception.RawObservation``,
 ``StateValidator``) lives in the integrated repository, so tests run against a
 local clone of it: set ``PAC_INTEGRATED_ROOT`` or clone it next to this repo
-as ``dlwotjd1289-cloud`` or ``pac-integrated-ref``.
+as ``pac-integrated-main`` (clean origin/main checkout, preferred),
+``dlwotjd1289-cloud`` or ``pac-integrated-ref``.
 """
 import os
 import sys
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 
 def _integrated_root():
     candidates = [os.environ.get("PAC_INTEGRATED_ROOT")]
-    candidates += [str(ROOT.parent / name) for name in ("dlwotjd1289-cloud", "pac-integrated-ref")]
+    candidates += [str(ROOT.parent / name) for name in ("pac-integrated-main", "dlwotjd1289-cloud", "pac-integrated-ref")]
     for c in candidates:
         if c and (Path(c) / "ros2_ws" / "src" / "pac_common" / "pac_common").is_dir():
             return Path(c)
@@ -25,6 +26,7 @@ def _integrated_root():
 INTEGRATED = _integrated_root()
 PATHS = [
     ROOT / "ros2_ws" / "src" / "pac_perception",  # ours first: shadows the integrated pac_perception
+    ROOT / "ros2_ws" / "src" / "pac_reinspection",
     *(p for p in sorted((INTEGRATED / "ros2_ws" / "src").glob("pac_*"))
       if (p / p.name).is_dir() and p.name != "pac_perception"),
     INTEGRATED / "tools" / "virtual_data",
