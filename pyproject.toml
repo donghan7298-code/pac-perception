@@ -4,17 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pac-perception"
-version = "0.1.0"
-description = "Box identification and anomaly screening from conveyor scale weight and top-view depth measurements"
+version = "0.2.0"
+description = "AHEAD stage 1 perception: top-view depth measurement and SKU fallback for the PAC 2026 integrated runtime"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["numpy>=1.23,<3", "PyYAML>=6,<7"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7,<9"]
+dev = ["pytest>=7.4,<9"]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["ros2_ws/src/pac_perception"]
+include = ["pac_perception*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+addopts = "-ra --import-mode=importlib"
+# Package paths (ours + the integrated repo's) are added by conftest.py.
